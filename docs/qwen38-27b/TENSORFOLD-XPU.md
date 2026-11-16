@@ -121,21 +121,33 @@ tensorfold-native serve \
 `--drafter` takes a **directory containing `model.safetensors`**, not a GGUF.
 The z-lab DFlash2 GGUF will not load.
 
-## Measured (one B70, 2026-11-16)
+## Measured (one B70, host 175, 2026-11-16)
+
+BetterBench v1.0 corpus, 20 passes per category, greedy, cold prefix cache:
+[charted report](assets/tensorfold-xpu-175-betterbench.html).
 
 | Axis | Result |
 |---|---|
-| Load time | 5.7 s (warm expert/kernel cache) |
+| Load time | 5.7 s (warm kernel cache) |
 | Streams / context | 7 streams × 16,384 tok (`--parallel 8`, one slot held) |
-| Decode, short prompt, DFlash2, thinking off | **134-150 tok/s** (159-330 tok responses) |
-| Decode, short prompt, DFlash2, thinking on | 86-96 tok/s |
-| Decode, 2K prompt, DFlash2, thinking on | ~47 tok/s |
-| Decode, no drafter | ~33 tok/s |
-| Prefill | not yet measured on this route |
-| Acceptance | 142-272 of 855-870 drafted tokens accepted per response |
+| Decode, weighted median across six categories | **125.4 tok/s** |
+| Decode, concurrency 1 | 108.0 tok/s aggregate, 140.7 per-request, TTFT p50 200 ms |
+| Decode, concurrency 2 / 4 / 8 | 172.6 / 209.3 / **234.3 tok/s** aggregate |
+| Prefill, 1,516-token prompt | 1,621 tok/s, TTFT 929 ms |
+| Prefill, 5,894-token prompt | 1,812 tok/s, TTFT 3,251 ms |
+| Prefill, 11,802-token prompt | 1,789 tok/s, TTFT 6,589 ms |
+| Peak observed single response | 161.7 tok/s (119 tokens, 102/110 drafts accepted) |
+| Card power under load | 220.6 W of a 230 W cap |
+| GPU clock under load | 2500 MHz actual = `max_freq` (`rp0_freq` 2800) |
 
 Resident memory: 20.3 GiB host RSS; weights 18.24 GiB; prompt cache 2.0 GiB
 budget, ~0.19 GiB per kept state.
+
+Two caveats from the harness: **62 of 160 runs stopped at `max_tokens`** (39%),
+so on a thinking model those measured the reasoning phase rather than a
+complete answer — the per-category `mean` column is inflated accordingly, and
+the weighted median is the honest figure. Every run streamed several tokens per
+update, so per-token inter-token latency is not reported.
 
 ## Context limits on one card
 
